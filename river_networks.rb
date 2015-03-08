@@ -1,5 +1,6 @@
 require "tree"
 require "gnuplot"
+require "geometry"
 
 def euclidean_distance(p1, p2)
   Math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -103,18 +104,9 @@ def find_area limits, x_max, y_max
 end
 
 def point_in_polygon(point, poly)
-  num_poly_corners = poly.length
-  j = num_poly_corners - 1
-  is_inside = false
-  for i in 0.upto(num_poly_corners - 1)
-    if poly[i][1] < point[1] and poly[j][1] >= point[1] or poly[j][1] < point[1] and poly[i][1] >= point[1]
-      if poly[i][0] + (point[1] - poly[i][1]) / (poly[j][1] - poly[i][1]) * (poly[j][0] - poly[i][0]) < point[0]
-        is_inside = (not is_inside)
-      end
-    end
-    j = i
-  end
-  return is_inside
+  vertices = poly.map { |v| Point(v[0], v[1]) }
+  area = Geometry::Polygon.new(vertices)
+  return area.contains?(Point(point[0], point[1]))
 end
 
 def algorithm points, x_max, y_max
@@ -127,7 +119,7 @@ def algorithm points, x_max, y_max
   new_point = Tree::TreeNode.new(id.to_s, [new_x, new_y])
   network << new_point
 
-  area_limits = [line(points[0], [new_x, new_y])]
+  area_limits = [line(points[0], new_point.content)]
   points.delete_at 0
   points.delete_if { |elem| elem == p1 or elem == p2}
 
@@ -145,13 +137,16 @@ def algorithm points, x_max, y_max
       p1, p2 = nearest_two(points_in_area, current.content)
     end
 
+    p "#{p1}, #{p2}"
+
     new_x = (p1[0] + p2[0])/2
     new_y = (p1[1] + p2[1])/2
     id += 1
+    p [new_x, new_y]
     new_point = Tree::TreeNode.new(id.to_s, [new_x, new_y])
     current << new_point
 
-    area_limits << line(current.content, [new_x, new_y])
+    area_limits << line(network.content, new_point.content)
     points.delete_if { |elem| elem == p1 or elem == p2}
 
     current = new_point
@@ -162,7 +157,7 @@ end
 
 x_max = 100.0
 y_max = 100.0
-num_points = 21
+num_points = 100
 
 points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.uniq
 
@@ -173,20 +168,32 @@ river_network.print_tree
 # river_network.each { |p| file << "#{p.content[0]} #{p.content[1]}\n" }
 # file.close
 
-# Gnuplot.open do |gp|
-#   Gnuplot::Plot.new( gp ) do |plot|
-  
-#     plot.title  "Array Plot Example"
-#     plot.xlabel "x"
-#     plot.ylabel "y"
-    
-#     arr = []
-#     river_network.each { |p| arr << p.content }
-#     p arr
+def recursive_plot(node, plot)
+  return if node.is_leaf?
+  node.children.each do |child|
+    data = [[node.content[0], child.content[0]], [node.content[1], child.content[1]]]
+    plot.data << Gnuplot::DataSet.new(data) do |ds|
+      ds.with = "lines"
+      ds.notitle
+    end
+    recursive_plot(child, plot)
+  end
+end
 
-#     plot.data << Gnuplot::DataSet.new( arr ) do |ds|
-#       ds.with = "points"
-#       ds.notitle
-#     end
-#   end
-# end
+Gnuplot.open do |gp|
+  Gnuplot::Plot.new( gp ) do |plot|
+  
+    plot.title  "Array Plot Example"
+    plot.xlabel "x"
+    plot.ylabel "y"
+    
+    arr = []
+    river_network.each { |p| arr << p.content }
+    p arr
+    xs = arr.map(&:first)
+    ys = arr.map(&:last)
+
+    
+    recursive_plot(river_network, plot)
+  end
+end
