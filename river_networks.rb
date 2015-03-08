@@ -110,23 +110,23 @@ def point_in_polygon(point, poly)
 end
 
 def algorithm points, x_max, y_max
-  network = Tree::TreeNode.new("root", points[0])
+  network = Tree::TreeNode.new("root", {pos: points[0]})
 
   p1, p2 = nearest_two(points, points[0])
   new_x = (p1[0] + p2[0])/2
   new_y = (p1[1] + p2[1])/2
   id = 1
-  new_point = Tree::TreeNode.new(id.to_s, [new_x, new_y])
+  new_point = Tree::TreeNode.new(id.to_s, {pos: [new_x, new_y]})
   network << new_point
 
-  area_limits = [line(points[0], new_point.content)]
+  area_limits = [line(points[0], new_point.content[:pos])]
   points.delete_at 0
   points.delete_if { |elem| elem == p1 or elem == p2}
 
   current = new_point
   while !points.empty?
     if area_limits.length == 1  
-      p1, p2 = nearest_two(points, current.content)
+      p1, p2 = nearest_two(points, current.content[:pos])
     else
       points_in_area = points.select { |p| point_in_polygon(p, find_area(area_limits, x_max, y_max)) }
       if points_in_area.empty?
@@ -134,19 +134,16 @@ def algorithm points, x_max, y_max
         current = current.parent
         next
       end
-      p1, p2 = nearest_two(points_in_area, current.content)
+      p1, p2 = nearest_two(points_in_area, current.content[:pos])
     end
-
-    p "#{p1}, #{p2}"
 
     new_x = (p1[0] + p2[0])/2
     new_y = (p1[1] + p2[1])/2
     id += 1
-    p [new_x, new_y]
-    new_point = Tree::TreeNode.new(id.to_s, [new_x, new_y])
+    new_point = Tree::TreeNode.new(id.to_s, {pos: [new_x, new_y]})
     current << new_point
 
-    area_limits << line(network.content, new_point.content)
+    area_limits << line(network.content[:pos], new_point.content[:pos])
     points.delete_if { |elem| elem == p1 or elem == p2}
 
     current = new_point
@@ -164,36 +161,49 @@ points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.un
 river_network = algorithm(points, x_max, y_max)
 river_network.print_tree
 
-# file = File.new("data",  "w")
-# river_network.each { |p| file << "#{p.content[0]} #{p.content[1]}\n" }
-# file.close
-
 def recursive_plot(node, plot)
   return if node.is_leaf?
   node.children.each do |child|
-    data = [[node.content[0], child.content[0]], [node.content[1], child.content[1]]]
+    data = [[node.content[:pos][0], child.content[:pos][0]], [node.content[:pos][1], child.content[:pos][1]]]
     plot.data << Gnuplot::DataSet.new(data) do |ds|
       ds.with = "lines"
+      ds.linewidth = child.content[:width]
       ds.notitle
     end
     recursive_plot(child, plot)
   end
 end
 
+def set_rivers_widths(network)
+  if network.is_leaf?
+    network.content[:width] = 1
+    return 1
+  else
+    children_widths = []
+    network.children.each do |r|
+      width = set_rivers_widths(r)
+      children_widths << width
+    end
+    unique = children_widths.uniq.sort
+    current = unique.length - 1
+    while current >= 0
+      return network.content[:width] = unique[current] + 1 if children_widths.count(unique[current]) >= 2
+      current -= 1
+    end
+    return network.content[:width] = unique[-1]
+  end
+end
+
+root_width = set_rivers_widths(river_network)
+river_network.content[:width] = root_width
+
 Gnuplot.open do |gp|
   Gnuplot::Plot.new( gp ) do |plot|
   
-    plot.title  "Array Plot Example"
+    plot.title  "River network"
     plot.xlabel "x"
     plot.ylabel "y"
-    
-    arr = []
-    river_network.each { |p| arr << p.content }
-    p arr
-    xs = arr.map(&:first)
-    ys = arr.map(&:last)
-
-    
+      
     recursive_plot(river_network, plot)
   end
 end
