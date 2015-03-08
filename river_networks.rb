@@ -1,4 +1,5 @@
 require "tree"
+require "gnuplot"
 
 def euclidean_distance(p1, p2)
   Math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -101,13 +102,29 @@ def find_area limits, x_max, y_max
   area.uniq
 end
 
+def point_in_polygon(point, poly)
+  num_poly_corners = poly.length
+  j = num_poly_corners - 1
+  is_inside = false
+  for i in 0.upto(num_poly_corners - 1)
+    if poly[i][1] < point[1] and poly[j][1] >= point[1] or poly[j][1] < point[1] and poly[i][1] >= point[1]
+      if poly[i][0] + (point[1] - poly[i][1]) / (poly[j][1] - poly[i][1]) * (poly[j][0] - poly[i][0]) < point[0]
+        is_inside = (not is_inside)
+      end
+    end
+    j = i
+  end
+  return is_inside
+end
+
 def algorithm points, x_max, y_max
   network = Tree::TreeNode.new("root", points[0])
 
   p1, p2 = nearest_two(points, points[0])
   new_x = (p1[0] + p2[0])/2
   new_y = (p1[1] + p2[1])/2
-  new_point = Tree::TreeNode.new("node", [new_x, new_y])
+  id = 1
+  new_point = Tree::TreeNode.new(id.to_s, [new_x, new_y])
   network << new_point
 
   area_limits = [line(points[0], [new_x, new_y])]
@@ -115,28 +132,28 @@ def algorithm points, x_max, y_max
   points.delete_if { |elem| elem == p1 or elem == p2}
 
   current = new_point
-
-  p1, p2 = nearest_two(points, current.content)
-  new_x = (p1[0] + p2[0])/2
-  new_y = (p1[1] + p2[1])/2
-  new_point = Tree::TreeNode.new("node", [new_x, new_y])
-  current << new_point
-
-  area_limits << line(current.content, [new_x, new_y])
-  points.delete_if { |elem| elem == p1 or elem == p2}
-
-  current = new_point
   while !points.empty?
-    p1, p2 = nearest_two(points, current.content)
+    if area_limits.length == 1  
+      p1, p2 = nearest_two(points, current.content)
+    else
+      points_in_area = points.select { |p| point_in_polygon(p, find_area(area_limits, x_max, y_max)) }
+      if points_in_area.empty?
+        area_limits.pop
+        current = current.parent
+        next
+      end
+      p1, p2 = nearest_two(points_in_area, current.content)
+    end
 
     new_x = (p1[0] + p2[0])/2
     new_y = (p1[1] + p2[1])/2
-    new_point = Tree::TreeNode.new("node", [new_x, new_y])
+    id += 1
+    new_point = Tree::TreeNode.new(id.to_s, [new_x, new_y])
     current << new_point
 
     area_limits << line(current.content, [new_x, new_y])
     points.delete_if { |elem| elem == p1 or elem == p2}
-p find_area area_limits, x_max, y_max
+
     current = new_point
   end
 
@@ -151,3 +168,25 @@ points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.un
 
 river_network = algorithm(points, x_max, y_max)
 river_network.print_tree
+
+# file = File.new("data",  "w")
+# river_network.each { |p| file << "#{p.content[0]} #{p.content[1]}\n" }
+# file.close
+
+# Gnuplot.open do |gp|
+#   Gnuplot::Plot.new( gp ) do |plot|
+  
+#     plot.title  "Array Plot Example"
+#     plot.xlabel "x"
+#     plot.ylabel "y"
+    
+#     arr = []
+#     river_network.each { |p| arr << p.content }
+#     p arr
+
+#     plot.data << Gnuplot::DataSet.new( arr ) do |ds|
+#       ds.with = "points"
+#       ds.notitle
+#     end
+#   end
+# end
