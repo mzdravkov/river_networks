@@ -18,7 +18,7 @@ def nearest_two(points, point)
     elsif distances[i] < min_dist2
       min_dist2 = distances[i]
       point2 = i
-    end  
+    end
   end
   return points[point1], points[point2]
 end
@@ -111,21 +111,29 @@ end
 
 def algorithm points, x_max, y_max
   network = Tree::TreeNode.new("root", {pos: points[0]})
-
+  id = 0
+  area_limits = []
+  current = network
   p1, p2 = nearest_two(points, points[0])
-  new_x = (p1[0] + p2[0])/2
-  new_y = (p1[1] + p2[1])/2
-  id = 1
-  new_point = Tree::TreeNode.new(id.to_s, {pos: [new_x, new_y]})
-  network << new_point
 
-  area_limits = [line(points[0], new_point.content[:pos])]
+  add_next_point_and_limit = lambda do
+    new_x = (p1[0] + p2[0])/2.0
+    new_y = (p1[1] + p2[1])/2.0
+    id += 1
+    new_point = Tree::TreeNode.new(id.to_s, {pos: [new_x, new_y]})
+    current << new_point
+
+    area_limits << line(network.content[:pos], new_point.content[:pos])
+    points.delete_if { |elem| elem == p1 or elem == p2 }
+
+    current = new_point
+  end
+
+  add_next_point_and_limit.call
   points.delete_at 0
-  points.delete_if { |elem| elem == p1 or elem == p2}
 
-  current = new_point
   while !points.empty?
-    if area_limits.length == 1  
+    if area_limits.length == 1
       p1, p2 = nearest_two(points, current.content[:pos])
     else
       points_in_area = points.select { |p| point_in_polygon(p, find_area(area_limits, x_max, y_max)) }
@@ -137,16 +145,7 @@ def algorithm points, x_max, y_max
       p1, p2 = nearest_two(points_in_area, current.content[:pos])
     end
 
-    new_x = (p1[0] + p2[0])/2
-    new_y = (p1[1] + p2[1])/2
-    id += 1
-    new_point = Tree::TreeNode.new(id.to_s, {pos: [new_x, new_y]})
-    current << new_point
-
-    area_limits << line(network.content[:pos], new_point.content[:pos])
-    points.delete_if { |elem| elem == p1 or elem == p2}
-
-    current = new_point
+    add_next_point_and_limit.call
   end
 
   return network
@@ -199,11 +198,11 @@ river_network.content[:width] = root_width
 
 Gnuplot.open do |gp|
   Gnuplot::Plot.new( gp ) do |plot|
-  
+
     plot.title  "River network"
     plot.xlabel "x"
     plot.ylabel "y"
-      
+
     recursive_plot(river_network, plot)
   end
 end
