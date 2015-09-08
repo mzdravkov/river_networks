@@ -1,6 +1,16 @@
 require "tree"
 require "gnuplot"
 require "geometry"
+require 'ruby_vor'
+
+def ccw(a,b,c)
+    return ((c[1]-a[1]) * (b[0]-a[0])) > ((b[1]-a[1]) * (c[0]-a[0]))
+end
+
+# Return true if line segments AB and CD intersect
+def intersect(a,b,c,d)
+    return ((ccw(a,c,d) != ccw(b,c,d)) and (ccw(a,b,c) != ccw(a,b,d)))
+end
 
 def euclidean_distance(p1, p2)
   Math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -9,7 +19,8 @@ end
 def nearest_two(points, point)
   distances = points.map { |p| euclidean_distance(p, point) }
   min_dist1 = min_dist2 = Float::INFINITY
-  point1 = point2 = 0
+  point1 = point2 = nil
+
   for i in 0...points.count
     next if distances[i] == 0
     if distances[i] < min_dist1
@@ -18,6 +29,10 @@ def nearest_two(points, point)
     elsif distances[i] < min_dist2
       min_dist2 = distances[i]
       point2 = i
+    end
+    if min_dist1 < min_dist2
+      min_dist1, min_dist2 = min_dist2, min_dist1
+      point1, point2 = point2, point1
     end
   end
   return points[point1], points[point2]
@@ -36,13 +51,13 @@ def find_area limits, x_max, y_max
 
   direction = if last_limit[0] * previous_limit[0] >= 0
     if previous_limit[0] >= 0
-      if previous_limit[0] - last_limit[0] >= 0
+      if previous_limit[0] >= last_limit[0]
         "right"
       else
         "left"
       end
     else
-      if last_limit[0] - previous_limit[0] >= 0
+      if last_limit[0] >= previous_limit[0]
         "left"
       else
         "rigth"
@@ -115,6 +130,7 @@ def algorithm points, x_max, y_max
   area_limits = []
   current = network
   p1, p2 = nearest_two(points, points[0])
+  inters = []
 
   add_next_point_and_limit = lambda do
     new_x = (p1[0] + p2[0])/2.0
@@ -133,7 +149,7 @@ def algorithm points, x_max, y_max
   points.delete_at 0
 
   while !points.empty?
-    if area_limits.length == 1
+    if area_limits.count == 1
       p1, p2 = nearest_two(points, current.content[:pos])
     else
       points_in_area = points.select { |p| point_in_polygon(p, find_area(area_limits, x_max, y_max)) }
@@ -142,23 +158,57 @@ def algorithm points, x_max, y_max
         current = current.parent
         next
       end
+      if points_in_area.count == 1
+        new_point = [rand(x_max), rand(y_max)]
+        while !point_in_polygon(new_point, find_area(area_limits, x_max, y_max))
+          new_point = [rand(x_max), rand(y_max)]
+        end
+        points_in_area << new_point ##hmm
+      end
       p1, p2 = nearest_two(points_in_area, current.content[:pos])
     end
 
     add_next_point_and_limit.call
+    network.each do |p1|
+      p1.children.each do |c1|
+        network.each do |p2|
+          p2.children.each do |c2|
+            if p1.content[:pos] != p2.content[:pos] and c1.content[:pos] != p2.content[:pos] and c2.content[:pos] != p1.content[:pos]
+              if intersect(p1.content[:pos], c1.content[:pos], p2.content[:pos], c2.content[:pos])
+
+                line = [p1.content[:pos], c1.content[:pos], p2.content[:pos], c2.content[:pos]]
+                unless inters.include? line
+                  p line
+                  p area_limits
+                  inters << line
+                end
+              end
+            end
+          end
+        end
+      end
+    end
   end
 
   return network
 end
 
-x_max = 100.0
-y_max = 100.0
-num_points = 100
+x_max = 1000.0
+y_max = 1000.0
+num_points = 72
 
 points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.uniq
 
 river_network = algorithm(points, x_max, y_max)
-river_network.print_tree
+# river_network.print_tree
+# river_network.each { |node| p node.content[:pos] }
+
+points = []
+river_network.each { |node| points << RubyVor::Point.new(*node.content[:pos]) }
+comp = RubyVor::VDDT::Computation.from_points(points)
+RubyVor::Visualizer.make_svg(comp, :name => 'dia.svg', :voronoi_diagram => true)
+# require 'pp'
+# pp comp.voronoi_diagram_raw
 
 def recursive_plot(node, plot)
   return if node.is_leaf?
