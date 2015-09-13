@@ -8,6 +8,7 @@ def euclidean_distance(p1, p2)
   Math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 end
 
+# returns the two points that are nearest to the point
 def nearest_two(points, point)
   distances = points.map { |p| euclidean_distance(p, point) }
   min_dist1 = min_dist2 = Float::INFINITY
@@ -38,6 +39,7 @@ def line p1, p2
   line_by_coords p1[0], p1[1], p2[0], p2[1]
 end
 
+# returns the y value of line at the given x
 def y_at line, x
   line[0] * x + line[1]
 end
@@ -54,6 +56,8 @@ def intersect a, b, c, d
   line1.intersects_with? line2
 end
 
+# returns the intersection points of AB and CD
+# or nil if they don't intersect
 def intersection a, b, c, d
   line1 = Segment.new_by_arrays(a, b)
   line2 = Segment.new_by_arrays(c, d)
@@ -62,6 +66,7 @@ def intersection a, b, c, d
   [intersection.x, intersection.y]
 end
 
+# returns the vertices of the polygon, which is the area defined by the limits.
 def find_area limits, x_max, y_max
   last_limit, previous_limit = limits[-1], limits[-2]
 
@@ -99,14 +104,16 @@ def find_area limits, x_max, y_max
       [i, bottom_right, mouth]
     end
   else
-    puts "Error: The limit doesn't intersect anything."
+    #TODO: find why this is happening
+    puts "Error: The limit doesn't intersect anything. Try again, this was a bad luck."
     exit(1)
   end
 
   area.uniq
 end
 
-def point_in_polygon(point, poly)
+# returns true if the point is within the bounds of the polygon
+def point_in_polygon?(point, poly)
   vertices = poly.map { |v| Point(v[0], v[1]) }
   area = Geometry::Polygon.new(vertices)
   return area.contains?(Point(point[0], point[1]))
@@ -118,15 +125,18 @@ def algorithm points, x_max, y_max
   area_limits = []
   current = network
   p1, p2 = nearest_two(points, points[0])
-  inters = []
 
   add_next_point_and_limit = lambda do
+    # get the centroid of p1 and p2
     new_x = (p1[0] + p2[0])/2.0
     new_y = (p1[1] + p2[1])/2.0
     id += 1
+    # create a Node for the new point
     new_point = Tree::TreeNode.new(id.to_s, {pos: [new_x, new_y]})
+    # add the new point to be child of current
     current << new_point
 
+    # adding new limit (a line through the mouth and the new point)
     area_limits << line(network.content[:pos], new_point.content[:pos])
     points.delete_if { |elem| elem == p1 or elem == p2 }
 
@@ -138,16 +148,23 @@ def algorithm points, x_max, y_max
 
   while !points.empty?
     if area_limits.count == 1
+      # if there is only one limit we go to whatever direction is the centroid
+      # of the nearest two points
       break if points.count == 1
       p1, p2 = nearest_two(points, current.content[:pos])
     else
+      # when we have more limits we know the direction they imply and look
+      # for points in that area only
       area = find_area(area_limits, x_max, y_max)
-      points_in_area = points.select { |p| point_in_polygon(p, area) }
+      points_in_area = points.select { |p| point_in_polygon?(p, area) }
+      # if no points in the area we delete the last limit and return one step backward
       if points_in_area.empty?
         area_limits.pop
         current = current.parent
         next
       end
+      # if only one point, we delete it
+      # originally, I generated random second point, but this can lead to intersections between rivers
       if points_in_area.count == 1
         points.delete_if { |p| p == points_in_area[0] }
         next
@@ -174,23 +191,21 @@ def recursive_plot(node, plot)
   end
 end
 
+# this makes rivers with many influxes
+# to be drawn with thicker lines
 def set_rivers_widths(network)
   if network.is_leaf?
-    network.content[:width] = 1
-    return 1
+    return network.content[:width] = 1
   else
     children_widths = []
     network.children.each do |r|
       width = set_rivers_widths(r)
       children_widths << width
     end
-    unique = children_widths.uniq.sort
-    current = unique.length - 1
-    while current >= 0
-      return network.content[:width] = unique[current] + 1 if children_widths.count(unique[current]) >= 2
-      current -= 1
-    end
-    return network.content[:width] = unique[-1]
+    max = children_widths.max
+    size = max
+    size += 1 if children_widths.count(max) > 1
+    return network.content[:width] = size
   end
 end
 
