@@ -5,17 +5,6 @@ require 'ruby_vor'
 
 include Geometry
 
-# def ccw(a,b,c)
-#   # changed the > with >= in order to catch the case when
-#   # the two segments have a common point
-#   return ((c[1]-a[1]) * (b[0]-a[0])) >= ((b[1]-a[1]) * (c[0]-a[0]))
-# end
-
-# # Return true if line segments AB and CD intersect
-# def intersect(a,b,c,d)
-#     return ((ccw(a,c,d) != ccw(b,c,d)) and (ccw(a,b,c) != ccw(a,b,d)))
-# end
-
 def euclidean_distance(p1, p2)
   Math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 end
@@ -57,11 +46,6 @@ end
 def point_on_line line, x
   [x, y_at(line, x)]
 end
-
-# def segment_to_line a, b
-#   slope = (a[1] - b[1])/(a[0]-b[0])
-#   [slope, a[1] - slope*a[0]]
-# end
 
 # returns true if AB X CD
 def intersect a, b, c, d
@@ -108,22 +92,14 @@ def find_area limits, x_max, y_max
     end
   end
 
-  p direction
-
-  # if intersects the left border
-  area = if i = intersection(bottom_left, top_left, mouth, point_on_line(last_limit, 0.0))
+  area = if i = intersection(bottom_left, top_left, mouth, point_on_line(last_limit, 0.0)) # left
     if direction == :left
       [i, mouth, bottom_left]
     else
       [i, top_left, top_right, bottom_right, mouth]
     end
-  elsif i = intersection(top_left, top_right, mouth, point_on_line(last_limit, 0)) # top
-    if direction == :left
-      [i, mouth, bottom_left, top_left]
-    else
-      [i, top_right, bottom_right, mouth]
-    end
-  elsif i = intersection(top_left, top_right, mouth, point_on_line(last_limit, x_max)) # top
+  elsif i = intersection(top_left, top_right, mouth, point_on_line(last_limit, 0.0)) or # top
+        i = intersection(top_left, top_right, mouth, point_on_line(last_limit, x_max)) # top
     if direction == :left
       [i, mouth, bottom_left, top_left]
     else
@@ -138,11 +114,9 @@ def find_area limits, x_max, y_max
   else
     p last_limit
     puts 'Error: The limit doesn\'t intersect anything.'
-    []
     # exit(1)
   end
 
-  p area
   area.uniq
 end
 
@@ -178,6 +152,7 @@ def algorithm points, x_max, y_max
 
   while !points.empty?
     if area_limits.count == 1
+      break if points.count == 1
       p1, p2 = nearest_two(points, current.content[:pos])
     else
       area = find_area(area_limits, x_max, y_max)
@@ -188,11 +163,13 @@ def algorithm points, x_max, y_max
         next
       end
       if points_in_area.count == 1
-        new_point = [rand(x_max), rand(y_max)]
-        while !point_in_polygon(new_point, area)
-          new_point = [rand(x_max), rand(y_max)]
-        end
-        points_in_area << new_point ##hmm
+        points.delete_if { |p| p == points_in_area[0] }
+        next
+        # new_point = [rand(x_max), rand(y_max)]
+        # while !point_in_polygon(new_point, area)
+        #   new_point = [rand(x_max), rand(y_max)]
+        # end
+        # points_in_area << new_point ##hmm
       end
       p1, p2 = nearest_two(points_in_area, current.content[:pos])
     end
