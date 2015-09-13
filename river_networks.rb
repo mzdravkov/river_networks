@@ -3,14 +3,18 @@ require "gnuplot"
 require "geometry"
 require 'ruby_vor'
 
-def ccw(a,b,c)
-    return ((c[1]-a[1]) * (b[0]-a[0])) > ((b[1]-a[1]) * (c[0]-a[0]))
-end
+include Geometry
 
-# Return true if line segments AB and CD intersect
-def intersect(a,b,c,d)
-    return ((ccw(a,c,d) != ccw(b,c,d)) and (ccw(a,b,c) != ccw(a,b,d)))
-end
+# def ccw(a,b,c)
+#   # changed the > with >= in order to catch the case when
+#   # the two segments have a common point
+#   return ((c[1]-a[1]) * (b[0]-a[0])) >= ((b[1]-a[1]) * (c[0]-a[0]))
+# end
+
+# # Return true if line segments AB and CD intersect
+# def intersect(a,b,c,d)
+#     return ((ccw(a,c,d) != ccw(b,c,d)) and (ccw(a,b,c) != ccw(a,b,d)))
+# end
 
 def euclidean_distance(p1, p2)
   Math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -46,75 +50,99 @@ def line p1, p2
   line_by_coords p1[0], p1[1], p2[0], p2[1]
 end
 
+def y_at line, x
+  line[0] * x + line[1]
+end
+
+def point_on_line line, x
+  [x, y_at(line, x)]
+end
+
+# def segment_to_line a, b
+#   slope = (a[1] - b[1])/(a[0]-b[0])
+#   [slope, a[1] - slope*a[0]]
+# end
+
+# returns true if AB X CD
+def intersect a, b, c, d
+  line1 = Segment.new_by_arrays(a, b)
+  line2 = Segment.new_by_arrays(c, d)
+
+  line1.intersects_with? line2
+end
+
+def intersection a, b, c, d
+  line1 = Segment.new_by_arrays(a, b)
+  line2 = Segment.new_by_arrays(c, d)
+  return nil unless line1.intersects_with?(line2)
+  intersection = line1.intersection_point_with(line2)
+  [intersection.x, intersection.y]
+end
+
 def find_area limits, x_max, y_max
   last_limit, previous_limit = limits[-1], limits[-2]
+
+  mouth = [x_max/2.0, 0.0]
+  bottom_left, top_left = [0.0, 0.0], [0.0, y_max]
+  bottom_right, top_right = [x_max, 0.0], [x_max, y_max]
 
   direction = if last_limit[0] * previous_limit[0] >= 0
     if previous_limit[0] >= 0
       if previous_limit[0] >= last_limit[0]
-        "right"
+        :right
       else
-        "left"
+        :left
       end
     else
       if last_limit[0] >= previous_limit[0]
-        "left"
+        :left
       else
-        "rigth"
+        :right
       end
     end
   else
     if previous_limit[0] >= 0
-      "left"
+      :left
     else
-      "rigt"
+      :right
     end
   end
 
-  # top line intersection
-  top_intersection_x = (y_max-last_limit[1])/last_limit[0] if last_limit[0] != 0
-  #check if last limit intersects the left line of the box
-  area = if last_limit[1] <= y_max and last_limit[1] >= 0
-    intersection = [0, last_limit[1]]
-    if direction == "left"
-      [[0, 0],
-       [x_max/2, 0],
-        intersection]
+  p direction
+
+  # if intersects the left border
+  area = if i = intersection(bottom_left, top_left, mouth, point_on_line(last_limit, 0.0))
+    if direction == :left
+      [i, mouth, bottom_left]
     else
-      [[x_max/2, 0],
-       [x_max, 0],
-       [x_max, y_max],
-       [0, y_max],
-       intersection]
+      [i, top_left, top_right, bottom_right, mouth]
     end
-  elsif last_limit[0] != 0 and 0 <= top_intersection_x and top_intersection_x >= x_max # if intersects the top
-    intersection = [top_intersection_x, y_max]
-    if direction == "left"
-      [[0, 0],
-       [x_max/2, 0],
-       intersection,
-       [0, y_max]]
+  elsif i = intersection(top_left, top_right, mouth, point_on_line(last_limit, 0)) # top
+    if direction == :left
+      [i, mouth, bottom_left, top_left]
     else
-      [[x_max/2, 0],
-       [x_max, 0],
-       [x_max, y_max],
-       intersection]
+      [i, top_right, bottom_right, mouth]
     end
-  else # and the right
-    intersection = [x_max, -1*last_limit[1]]
-    if direction == "left"
-      [[0, 0],
-       [x_max/2, 0],
-       intersection,
-       [x_max, y_max],
-       [0, y_max]]
+  elsif i = intersection(top_left, top_right, mouth, point_on_line(last_limit, x_max)) # top
+    if direction == :left
+      [i, mouth, bottom_left, top_left]
     else
-      [[x_max/2, 0],
-       [x_max, 0],
-       intersection]
+      [i, top_right, bottom_right, mouth]
     end
+  elsif i = intersection(bottom_right, top_right, mouth, point_on_line(last_limit, x_max)) # right
+    if direction == :left
+      [i, mouth, bottom_left, top_left, top_right]
+    else
+      [i, bottom_right, mouth]
+    end
+  else
+    p last_limit
+    puts 'Error: The limit doesn\'t intersect anything.'
+    []
+    # exit(1)
   end
 
+  p area
   area.uniq
 end
 
@@ -152,7 +180,8 @@ def algorithm points, x_max, y_max
     if area_limits.count == 1
       p1, p2 = nearest_two(points, current.content[:pos])
     else
-      points_in_area = points.select { |p| point_in_polygon(p, find_area(area_limits, x_max, y_max)) }
+      area = find_area(area_limits, x_max, y_max)
+      points_in_area = points.select { |p| point_in_polygon(p, area) }
       if points_in_area.empty?
         area_limits.pop
         current = current.parent
@@ -160,7 +189,7 @@ def algorithm points, x_max, y_max
       end
       if points_in_area.count == 1
         new_point = [rand(x_max), rand(y_max)]
-        while !point_in_polygon(new_point, find_area(area_limits, x_max, y_max))
+        while !point_in_polygon(new_point, area)
           new_point = [rand(x_max), rand(y_max)]
         end
         points_in_area << new_point ##hmm
