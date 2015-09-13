@@ -72,24 +72,12 @@ def find_area limits, x_max, y_max
 
   direction = if last_limit[0] * previous_limit[0] >= 0
     if previous_limit[0] >= 0
-      if previous_limit[0] >= last_limit[0]
-        :right
-      else
-        :left
-      end
+      previous_limit[0] >= last_limit[0] ? :right : :left
     else
-      if last_limit[0] >= previous_limit[0]
-        :left
-      else
-        :right
-      end
+      last_limit[0] >= previous_limit[0] ? :left : :right
     end
   else
-    if previous_limit[0] >= 0
-      :left
-    else
-      :right
-    end
+    previous_limit[0] >= 0 ? :left : :right
   end
 
   area = if i = intersection(bottom_left, top_left, mouth, point_on_line(last_limit, 0.0)) # left
@@ -98,8 +86,8 @@ def find_area limits, x_max, y_max
     else
       [i, top_left, top_right, bottom_right, mouth]
     end
-  elsif i = intersection(top_left, top_right, mouth, point_on_line(last_limit, 0.0)) or # top
-        i = intersection(top_left, top_right, mouth, point_on_line(last_limit, x_max)) # top
+  elsif i = (intersection(top_left, top_right, mouth, point_on_line(last_limit, 0.0)) or # top
+             intersection(top_left, top_right, mouth, point_on_line(last_limit, x_max)))
     if direction == :left
       [i, mouth, bottom_left, top_left]
     else
@@ -112,9 +100,8 @@ def find_area limits, x_max, y_max
       [i, bottom_right, mouth]
     end
   else
-    p last_limit
-    puts 'Error: The limit doesn\'t intersect anything.'
-    # exit(1)
+    puts "Error: The limit doesn't intersect anything."
+    exit(1)
   end
 
   area.uniq
@@ -165,35 +152,11 @@ def algorithm points, x_max, y_max
       if points_in_area.count == 1
         points.delete_if { |p| p == points_in_area[0] }
         next
-        # new_point = [rand(x_max), rand(y_max)]
-        # while !point_in_polygon(new_point, area)
-        #   new_point = [rand(x_max), rand(y_max)]
-        # end
-        # points_in_area << new_point ##hmm
       end
       p1, p2 = nearest_two(points_in_area, current.content[:pos])
     end
 
     add_next_point_and_limit.call
-    network.each do |p1|
-      p1.children.each do |c1|
-        network.each do |p2|
-          p2.children.each do |c2|
-            if p1.content[:pos] != p2.content[:pos] and c1.content[:pos] != p2.content[:pos] and c2.content[:pos] != p1.content[:pos]
-              if intersect(p1.content[:pos], c1.content[:pos], p2.content[:pos], c2.content[:pos])
-
-                line = [p1.content[:pos], c1.content[:pos], p2.content[:pos], c2.content[:pos]]
-                unless inters.include? line
-                  p line
-                  p area_limits
-                  inters << line
-                end
-              end
-            end
-          end
-        end
-      end
-    end
   end
 
   return network
