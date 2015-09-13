@@ -196,7 +196,7 @@ end
 
 x_max = 1000.0
 y_max = 1000.0
-num_points = 170
+num_points = ARGV.empty? ? 100 : ARGV.first.to_i
 
 points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.uniq
 
