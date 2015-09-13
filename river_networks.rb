@@ -1,7 +1,6 @@
 require "tree"
 require "gnuplot"
 require "geometry"
-require 'ruby_vor'
 
 include Geometry
 
@@ -162,23 +161,6 @@ def algorithm points, x_max, y_max
   return network
 end
 
-x_max = 1000.0
-y_max = 1000.0
-num_points = 72
-
-points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.uniq
-
-river_network = algorithm(points, x_max, y_max)
-# river_network.print_tree
-# river_network.each { |node| p node.content[:pos] }
-
-points = []
-river_network.each { |node| points << RubyVor::Point.new(*node.content[:pos]) }
-comp = RubyVor::VDDT::Computation.from_points(points)
-RubyVor::Visualizer.make_svg(comp, :name => 'dia.svg', :voronoi_diagram => true)
-# require 'pp'
-# pp comp.voronoi_diagram_raw
-
 def recursive_plot(node, plot)
   return if node.is_leaf?
   node.children.each do |child|
@@ -211,6 +193,14 @@ def set_rivers_widths(network)
     return network.content[:width] = unique[-1]
   end
 end
+
+x_max = 1000.0
+y_max = 1000.0
+num_points = 170
+
+points = [[x_max/2, 0]] + (1...num_points).map { [rand(x_max), rand(y_max)] }.uniq
+
+river_network = algorithm(points, x_max, y_max)
 
 root_width = set_rivers_widths(river_network)
 river_network.content[:width] = root_width
