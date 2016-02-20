@@ -2,6 +2,8 @@ require "tree"
 require "gnuplot"
 require "geometry"
 
+require "./Splines/srcs_ruby_interface/Splines_ffi.rb"
+
 include Geometry
 
 def euclidean_distance(p1, p2)
@@ -178,7 +180,7 @@ def algorithm points, x_max, y_max
   return network
 end
 
-def recursive_plot(node, plot)
+def recursive_plot(node, plot, branches_colors)
   return if node.is_leaf?
   node.children.each do |child|
     data = [[node.content[:pos][0], child.content[:pos][0]], [node.content[:pos][1], child.content[:pos][1]]]
@@ -186,8 +188,9 @@ def recursive_plot(node, plot)
       ds.with = "lines"
       ds.linewidth = child.content[:width]
       ds.notitle
+      ds.linecolor = "rgbcolor \"##{branches_colors[child.content['branch']]}\""
     end
-    recursive_plot(child, plot)
+    recursive_plot(child, plot, branches_colors)
   end
 end
 
@@ -209,6 +212,23 @@ def set_rivers_widths(network)
   end
 end
 
+def branches(node, branch, branches)
+  branch << node
+  node.content['branch'] = branch.object_id
+  return branches << branch if node.children.empty?
+
+  successor = node.children.max_by { |c| c.size }
+  node.children.each do |child|
+    if child == successor
+      branches(child, branch, branches)
+    else
+      branches(child, Array.new, branches)
+    end
+  end
+
+  return branches
+end
+
 x_max = 1000.0
 y_max = 1000.0
 num_points = ARGV.empty? ? 100 : ARGV.first.to_i
@@ -220,6 +240,13 @@ river_network = algorithm(points, x_max, y_max)
 root_width = set_rivers_widths(river_network)
 river_network.content[:width] = root_width
 
+river_branches = branches(river_network, [], [])
+
+river_branches.each { |branch| p "new:"; branch.each { |n| p n.content } }
+
+colors = river_branches.map { rand(256).to_s(16) + rand(256).to_s(16) + rand(256).to_s(16) }
+branches_colors = Hash[river_branches.map(&:object_id).zip(colors)]
+
 Gnuplot.open do |gp|
   Gnuplot::Plot.new( gp ) do |plot|
 
@@ -227,6 +254,14 @@ Gnuplot.open do |gp|
     plot.xlabel "x"
     plot.ylabel "y"
 
-    recursive_plot(river_network, plot)
+    recursive_plot(river_network, plot, branches_colors)
   end
 end
+
+
+
+spline = Spline.new
+
+# xx0.zip(yy0).each { |p| p p ; spline.push_back(p[0],p[1]) }
+
+# spline.build

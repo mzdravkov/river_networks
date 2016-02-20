@@ -3,13 +3,21 @@ Sandbox for playing around with procedural generation of river networks.
 
 ## Installation
 
-Clone the repo and then run:
-
 ``git clone https://github.com/mzdravkov/river_networks``
 
 ``cd river_networks``
 
 ``bundle``
+
+Then build the Splines shared lib:
+
+``cd Splines``
+
+``make libSplines.so``
+
+## Usage
+
+And again, from the root of the project:
 
 ``ruby river_networks.rb``
 

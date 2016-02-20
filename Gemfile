@@ -5,3 +5,4 @@ gem "rubytree"
 gem "gnuplot"
 gem 'ruby-geometry'
 gem 'rubyvor'
+gem 'ffi'
