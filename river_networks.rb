@@ -1,8 +1,10 @@
+require './spline.rb'
+
 require "tree"
 require "gnuplot"
 require "geometry"
-
-require "./Splines/srcs_ruby_interface/Splines_ffi.rb"
+require 'bezier'
+require 'polynomial'
 
 include Geometry
 
@@ -188,7 +190,7 @@ def recursive_plot(node, plot, branches_colors)
       ds.with = "lines"
       ds.linewidth = child.content[:width]
       ds.notitle
-      ds.linecolor = "rgbcolor \"##{branches_colors[child.content['branch']]}\""
+      ds.linecolor = "rgbcolor \"##{branches_colors[child.content[:branch]]}\""
     end
     recursive_plot(child, plot, branches_colors)
   end
@@ -214,7 +216,7 @@ end
 
 def branches(node, branch, branches)
   branch << node
-  node.content['branch'] = branch.object_id
+  node.content[:branch] = branch.object_id
   return branches << branch if node.children.empty?
 
   successor = node.children.max_by { |c| c.size }
@@ -242,7 +244,7 @@ river_network.content[:width] = root_width
 
 river_branches = branches(river_network, [], [])
 
-river_branches.each { |branch| p "new:"; branch.each { |n| p n.content } }
+# river_branches.each { |branch| p "new:"; branch.each { |n| p n.content } }
 
 colors = river_branches.map { rand(256).to_s(16) + rand(256).to_s(16) + rand(256).to_s(16) }
 branches_colors = Hash[river_branches.map(&:object_id).zip(colors)]
@@ -258,10 +260,51 @@ Gnuplot.open do |gp|
   end
 end
 
+# def xs_of_points_on_line(xs, n)
+#   return [xs[0], (xs[0] + xs[1])/2.0, xs[1]] if n == 0
+#   # p xs
+#   new_xs = xs.each_cons(2) { |x1, x2| xs_of_points_on_line [x1, x2], n - 1 }
+#   p new_xs
+#   # new_xs.inject(&:+)
+#   new_xs
+# end
 
+Gnuplot.open do |gp|
+  Gnuplot::Plot.new(gp) do |plot|
+    plot.title  "River network"
+    plot.xlabel "x"
+    plot.ylabel "y"
 
-spline = Spline.new
+    river_branches.each do |branch|
+      xs = branch.map { |node| node.content[:pos][0] }
+      ys = branch.map { |node| node.content[:pos][1] }
+      points = xs.zip(ys)
 
-# xx0.zip(yy0).each { |p| p p ; spline.push_back(p[0],p[1]) }
+      next if branch.length < 2
 
-# spline.build
+      xs = points.map(&:first)
+      ys = points.map(&:last)
+
+      as, bs, cs, ds = cubic_spline(xs.length, xs, ys)
+      # xs = [1, 2, 3, 4]
+      # ys = [1, 2, 2, 1]
+      # as, bs, cs, ds = cubic_spline(4, [1, 2, 3, 4], [1, 2, 2, 1])
+      p as
+
+      (as.length - 1).times do |i|
+        poly = Polynomial.new ds[i], cs[i], bs[i], as[i]
+        # xs_for_interpolation = xs_of_points_on_line [xs[i], xs[i+1]], 2
+        xs_for_interpolation = (xs[i]..xs[i+1]).step(((xs[i+1] - xs[i])/10.0).abs).to_a
+        p xs_for_interpolation
+        interpolated_ys = xs_for_interpolation.map { |x| poly.substitute x }
+        p interpolated_ys
+
+        plot.data << Gnuplot::DataSet.new([xs_for_interpolation, interpolated_ys]) do |ds|
+          ds.notitle
+        end
+      end
+
+      break
+    end
+  end
+end
